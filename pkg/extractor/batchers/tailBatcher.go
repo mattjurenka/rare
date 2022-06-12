@@ -8,7 +8,7 @@ import (
 
 // TailFilesToChan tails a set of files to an input batcher that can be consumed by extractor
 //  unlike a normal file batcher, this will attempt to tail all files at once
-func TailFilesToChan(filenames <-chan string, batchSize int, reopen, poll bool) *Batcher {
+func TailFilesToChan(filenames <-chan string, batchSize int, reopen, poll, tail bool) *Batcher {
 	out := newBatcher(128)
 
 	go func() {
@@ -28,8 +28,14 @@ func TailFilesToChan(filenames <-chan string, batchSize int, reopen, poll bool) 
 					out.incErrors()
 					return
 				}
+				if tail {
+					if err := r.Drain(); err != nil {
+						logger.Print("Unable to tail file source: ", err)
+						out.incErrors()
+					}
+				}
 
-				out.syncReaderToBatcher(filename, r, batchSize)
+				out.syncReaderToBatcherWithTimeFlush(filename, r, batchSize, AutoFlushTimeout)
 			}(filename)
 		}
 
